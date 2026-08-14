@@ -1,0 +1,259 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  COMPLIANCE_MANAGER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  FAILED
+  SUPERSEDED
+}
+
+enum VerificationStatus {
+  REQUESTED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum AIExtractionStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  READ
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum ComplianceDocumentType {
+  RIGHT_TO_WORK
+  DBS_CHECK
+  PROFESSIONAL_CERTIFICATION
+  OTHER
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users               User[]
+  candidates          Candidate[]
+  complianceDocuments ComplianceDocument[]
+  documentVersions    DocumentVersion[]
+  auditEvents         AuditEvent[]
+  outboxEvents        OutboxEvent[]
+  aiExtractions       AIExtraction[]
+  idempotencyKeys     IdempotencyKey[]
+  verifications       Verification[]
+
+  @@index([name])
+}
+
+model User {
+  id        String     @id @default(uuid())
+  tenantId  String
+  email     String
+  password  String
+  name      String
+  role      UserRole
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditEvents   AuditEvent[]
+  aiExtractions AIExtraction[]
+  verifications Verification[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Candidate {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  email          String
+  roleAppliedFor String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  complianceDocuments ComplianceDocument[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([tenantId, name])
+}
+
+model ComplianceDocument {
+  id          String                 @id @default(uuid())
+  tenantId    String
+  candidateId String
+  type        ComplianceDocumentType
+
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  status         DocumentStatus @default(PENDING)
+  currentVersion Int            @default(1)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  versions      DocumentVersion[]
+  verifications Verification[]
+
+  @@unique([tenantId, candidateId, type])
+  @@index([tenantId])
+  @@index([tenantId, candidateId])
+  @@index([tenantId, expiryDate])
+}
+
+model DocumentVersion {
+  id                  String         @id @default(uuid())
+  tenantId            String
+  documentId          String
+  version             Int
+  issueDate           DateTime?
+  expiryDate          DateTime?
+  status              DocumentStatus
+  fileReference       String?
+  supersedesVersionId String?
+  createdAt           DateTime       @default(now())
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document ComplianceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  supersedesVersion DocumentVersion?  @relation("VersionSupersession", fields: [supersedesVersionId], references: [id])
+  supersededBy      DocumentVersion[] @relation("VersionSupersession")
+
+  @@unique([documentId, version])
+  @@index([tenantId])
+  @@index([tenantId, documentId])
+}
+
+model Verification {
+  id            String             @id @default(uuid())
+  tenantId      String
+  documentId    String
+  status        VerificationStatus @default(REQUESTED)
+  requestedBy   String
+  verifiedAt    DateTime?
+  failureReason String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document ComplianceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  actor    User               @relation(fields: [requestedBy], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@index([tenantId, documentId])
+}
+
+model AuditEvent {
+  id         String      @id @default(uuid())
+  tenantId   String
+  actorId    String?
+  action     AuditAction
+  recordType String
+  recordId   String
+  timestamp  DateTime    @default(now())
+  beforeHash String?
+  afterHash  String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actor  User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, timestamp])
+  @@index([tenantId, recordType, recordId])
+}
+
+model OutboxEvent {
+  id          String       @id @default(uuid())
+  tenantId    String
+  eventType   String
+  aggregateId String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  processedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([status, createdAt])
+}
+
+model AIExtraction {
+  id          String             @id @default(uuid())
+  tenantId    String
+  actorId     String
+  candidateId String?
+  purpose     String
+  model       String
+  inputHash   String
+  output      Json
+  status      AIExtractionStatus @default(PROPOSED)
+  createdAt   DateTime           @default(now())
+  reviewedAt  DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+}
+
+model IdempotencyKey {
+  id             String    @id @default(uuid())
+  tenantId       String
+  key            String
+  requestHash    String
+  responseStatus Int?
+  responseBody   Json?
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2023",
+
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+
+    "sourceMap": true,
+    "outDir": "./dist",
+
+    "incremental": true,
+    "skipLibCheck": true,
+
+    "forceConsistentCasingInFileNames": true
+  }
+}
