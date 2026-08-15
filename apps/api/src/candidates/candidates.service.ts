@@ -8,10 +8,16 @@ import { CreateCandidateDto } from './dto/create-candidate.dto.js';
 import { UpdateCandidateDto } from './dto/update-candidate.dto.js';
 import { ListCandidatesDto } from './dto/list-candidates.dto.js';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-request.interface.js';
+import { TenantTransactionService } from '../prisma/tenant-transaction.service.js';
+import { AuditService } from '../audit/audit.service.js';
 
 @Injectable()
 export class CandidatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantTransaction: TenantTransactionService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async createCandidate(dto: CreateCandidateDto, user: AuthenticatedUser) {
     const existing = await this.prisma.candidate.findUnique({
@@ -27,13 +33,79 @@ export class CandidatesService {
       throw new ConflictException('A candidate with this email already exists');
     }
 
-    return this.prisma.candidate.create({
-      data: {
+    return this.tenantTransaction.execute(user.tenantId, async (tx) => {
+      const candidate = await tx.candidate.create({
+        data: {
+          tenantId: user.tenantId,
+          name: dto.name,
+          email: dto.email,
+          roleAppliedFor: dto.roleAppliedFor,
+        },
+      });
+
+      await this.auditService.recordCreate(tx, {
         tenantId: user.tenantId,
-        name: dto.name,
-        email: dto.email,
-        roleAppliedFor: dto.roleAppliedFor,
-      },
+        actorId: user.id,
+        recordType: 'Candidate',
+        recordId: candidate.id,
+        after: candidate,
+      });
+
+      return candidate;
+    });
+  }
+
+  async updateCandidate(
+    id: string,
+    dto: UpdateCandidateDto,
+    user: AuthenticatedUser,
+  ) {
+    return this.tenantTransaction.execute(user.tenantId, async (tx) => {
+      const candidate = await tx.candidate.findFirst({
+        where: {
+          id,
+          tenantId: user.tenantId,
+        },
+      });
+
+      if (!candidate) {
+        throw new NotFoundException('Candidate not found');
+      }
+
+      if (dto.email && dto.email !== candidate.email) {
+        const existing = await tx.candidate.findUnique({
+          where: {
+            tenantId_email: {
+              tenantId: user.tenantId,
+              email: dto.email,
+            },
+          },
+        });
+
+        if (existing) {
+          throw new ConflictException(
+            'A candidate with this email already exists',
+          );
+        }
+      }
+
+      const updated = await tx.candidate.update({
+        where: {
+          id: candidate.id,
+        },
+        data: dto,
+      });
+
+      await this.auditService.recordUpdate(tx, {
+        tenantId: user.tenantId,
+        actorId: user.id,
+        recordType: 'Candidate',
+        recordId: candidate.id,
+        before: candidate,
+        after: updated,
+      });
+
+      return updated;
     });
   }
 
@@ -101,61 +173,30 @@ export class CandidatesService {
   }
 
   async getCandidateById(id: string, user: AuthenticatedUser) {
-    const candidate = await this.prisma.candidate.findFirst({
-      where: {
-        id,
-        tenantId: user.tenantId,
-      },
-      include: {
-        complianceDocuments: true,
-      },
-    });
-
-    if (!candidate) {
-      throw new NotFoundException('Candidate not found');
-    }
-
-    return candidate;
-  }
-
-  async updateCandidate(
-    id: string,
-    dto: UpdateCandidateDto,
-    user: AuthenticatedUser,
-  ) {
-    const candidate = await this.prisma.candidate.findFirst({
-      where: {
-        id,
-        tenantId: user.tenantId,
-      },
-    });
-
-    if (!candidate) {
-      throw new NotFoundException('Candidate not found');
-    }
-
-    if (dto.email && dto.email !== candidate.email) {
-      const existing = await this.prisma.candidate.findUnique({
+    return this.prisma.$transaction(async (tx) => {
+      const candidate = await tx.candidate.findFirst({
         where: {
-          tenantId_email: {
-            tenantId: user.tenantId,
-            email: dto.email,
-          },
+          id,
+          tenantId: user.tenantId,
+        },
+        include: {
+          complianceDocuments: true,
         },
       });
 
-      if (existing) {
-        throw new ConflictException(
-          'A candidate with this email already exists',
-        );
+      if (!candidate) {
+        throw new NotFoundException('Candidate not found');
       }
-    }
 
-    return this.prisma.candidate.update({
-      where: {
-        id: candidate.id,
-      },
-      data: dto,
+      await this.auditService.recordRead(tx, {
+        tenantId: user.tenantId,
+        actorId: user.id,
+        recordType: 'Candidate',
+        recordId: candidate.id,
+        record: candidate,
+      });
+
+      return candidate;
     });
   }
 }

@@ -1,17 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ComplianceDocumentController } from './compliance-document.controller';
-import { ComplianceDocumentService } from './compliance-document.service';
+import { ComplianceDocumentsController } from './compliance-document.controller.js';
+import { ComplianceDocumentsService } from './compliance-document.service.js';
 
-describe('ComplianceDocumentController', () => {
-  let controller: ComplianceDocumentController;
+import { beforeEach, describe, expect, it } from '@jest/globals';
+
+describe('ComplianceDocumentsController', () => {
+  let controller: ComplianceDocumentsController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [ComplianceDocumentController],
-      providers: [ComplianceDocumentService],
+      controllers: [ComplianceDocumentsController],
+      providers: [ComplianceDocumentsService],
     }).compile();
 
-    controller = module.get<ComplianceDocumentController>(ComplianceDocumentController);
+    controller = module.get<ComplianceDocumentsController>(
+      ComplianceDocumentsController,
+    );
   });
 
   it('should be defined', () => {

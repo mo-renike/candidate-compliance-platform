@@ -10,3 +10,5 @@ The critical rule:
 
 No controller/service should accept a tenant ID from the client and trust it.
 Never trust a tenant ID supplied by the client. The tenant comes from the authenticated user's server-side context.
+If candidate creation succeeds but audit creation fails, we must not end up with an unaudited compliance record.
+Since the immutability guarantee lives in a Postgres trigger, it can't be verified with mocks alone. I'd split this into two files: a mocked unit test for CandidatesService (audit calls happen with the right shape) and an integration test against a real test DB for AuditService (hashes, and the immutability trigger actually fires).

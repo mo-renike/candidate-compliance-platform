@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { PrismaService } from '../src/prisma/prisma.service.js';
-import { TenantTransactionService } from '../src/prisma/tenant-transaction.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { TenantTransactionService } from '../prisma/tenant-transaction.service.js';
 
 describe('Tenant Isolation (RLS)', () => {
   let prisma: PrismaService;

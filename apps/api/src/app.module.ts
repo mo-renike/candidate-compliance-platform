@@ -5,6 +5,7 @@ import { CandidatesModule } from './candidates/candidates.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ComplianceDocumentModule } from './compliance-document/compliance-document.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
+import { AuditModule } from './audit/audit.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
     CandidatesModule,
     ComplianceDocumentModule,
     IdempotencyModule,
+    AuditModule,
   ],
 })
 export class AppModule {}
