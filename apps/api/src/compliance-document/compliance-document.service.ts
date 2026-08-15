@@ -8,14 +8,17 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateComplianceDocumentDto } from './dto/create-compliance-document.dto.js';
 import { ListComplianceDocumentsDto } from './dto/list-compliance-documents.dto.js';
 import { UpdateComplianceDocumentDto } from './dto/update-compliance-document.dto.js';
-import { createHash } from 'node:crypto';
 import { IdempotencyService } from '../common/idempotency/idempotency.service.js';
+import { AuditService } from '../audit/audit.service.js';
+import { TenantTransactionService } from '../prisma/tenant-transaction.service.js';
 
 @Injectable()
 export class ComplianceDocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly tenantTransaction: TenantTransactionService,
+    private readonly auditService: AuditService,
   ) {}
 
   async createDocument(
@@ -62,44 +65,52 @@ export class ComplianceDocumentsService {
         throw new NotFoundException('Candidate not found');
       }
 
-      const document = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.complianceDocument.create({
-          data: {
-            tenantId,
-            candidateId: dto.candidateId,
-            type: dto.type,
-            issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
-            expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
-            status: DocumentStatus.PENDING,
-            currentVersion: 1,
-          },
-        });
+      const document = await this.tenantTransaction.execute(
+        tenantId,
+        async (tx) => {
+          const created = await tx.complianceDocument.create({
+            data: {
+              tenantId,
+              candidateId: dto.candidateId,
+              type: dto.type,
+              issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
+              expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
+              status: DocumentStatus.PENDING,
+              currentVersion: 1,
+            },
+          });
 
-        await tx.documentVersion.create({
-          data: {
-            tenantId,
-            documentId: created.id,
-            version: 1,
-            issueDate: created.issueDate,
-            expiryDate: created.expiryDate,
-            status: created.status,
-            fileReference: dto.fileReference,
-          },
-        });
+          const version = await tx.documentVersion.create({
+            data: {
+              tenantId,
+              documentId: created.id,
+              version: 1,
+              issueDate: created.issueDate,
+              expiryDate: created.expiryDate,
+              status: created.status,
+              fileReference: dto.fileReference,
+            },
+          });
 
-        await tx.auditEvent.create({
-          data: {
+          await this.auditService.recordCreate(tx, {
             tenantId,
             actorId,
-            action: 'CREATE',
+            recordType: 'DocumentVersion',
+            recordId: version.id,
+            after: version,
+          });
+
+          await this.auditService.recordCreate(tx, {
+            tenantId,
+            actorId,
             recordType: 'ComplianceDocument',
             recordId: created.id,
-            afterHash: this.hashRecord(created),
-          },
-        });
+            after: created,
+          });
 
-        return created;
-      });
+          return created;
+        },
+      );
 
       if (idempotencyKey) {
         await this.idempotencyService.complete(
@@ -126,24 +137,57 @@ export class ComplianceDocumentsService {
 
     const where = {
       tenantId,
-      ...(query.candidateId && {
-        candidateId: query.candidateId,
-      }),
-      ...(query.type && {
-        type: query.type,
-      }),
-      ...(query.status && {
-        status: query.status,
-      }),
+      ...(query.candidateId && { candidateId: query.candidateId }),
+      ...(query.type && { type: query.type }),
+      ...(query.status && { status: query.status }),
     };
 
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.complianceDocument.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: {
-          createdAt: 'desc',
+    return this.tenantTransaction.execute(tenantId, async (tx) => {
+      const [data, total] = await Promise.all([
+        tx.complianceDocument.findMany({
+          where,
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            candidate: true,
+            versions: { orderBy: { version: 'desc' }, take: 1 },
+          },
+        }),
+        tx.complianceDocument.count({ where }),
+      ]);
+
+      return {
+        data,
+        meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      };
+    });
+  }
+
+  async getExpiringSoon(tenantId: string) {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now);
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+    return this.tenantTransaction.execute(tenantId, (tx) =>
+      tx.complianceDocument.findMany({
+        where: {
+          tenantId,
+          expiryDate: { gte: now, lte: thirtyDaysFromNow },
+          status: { not: DocumentStatus.SUPERSEDED },
+        },
+        include: { candidate: true },
+        orderBy: { expiryDate: 'asc' },
+      }),
+    );
+  }
+
+  async getDocumentByID(tenantId: string, actorId: string, id: string) {
+    return this.tenantTransaction.execute(tenantId, async (tx) => {
+      const document = await tx.complianceDocument.findFirst({
+        where: {
+          id,
+          tenantId,
         },
         include: {
           candidate: true,
@@ -151,56 +195,24 @@ export class ComplianceDocumentsService {
             orderBy: {
               version: 'desc',
             },
-            take: 1,
           },
         },
-      }),
-      this.prisma.complianceDocument.count({ where }),
-    ]);
+      });
 
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
+      if (!document) {
+        throw new NotFoundException('Compliance document not found');
+      }
 
-  async getDocumentByID(tenantId: string, actorId: string, id: string) {
-    const document = await this.prisma.complianceDocument.findFirst({
-      where: {
-        id,
-        tenantId,
-      },
-      include: {
-        candidate: true,
-        versions: {
-          orderBy: {
-            version: 'desc',
-          },
-        },
-      },
-    });
-
-    if (!document) {
-      throw new NotFoundException('Compliance document not found');
-    }
-
-    await this.prisma.auditEvent.create({
-      data: {
+      await this.auditService.recordRead(tx, {
         tenantId,
         actorId,
-        action: 'READ',
         recordType: 'ComplianceDocument',
         recordId: id,
-        afterHash: this.hashRecord(document),
-      },
-    });
+        record: document,
+      });
 
-    return document;
+      return document;
+    });
   }
 
   async updateDocument(
@@ -209,72 +221,78 @@ export class ComplianceDocumentsService {
     id: string,
     dto: UpdateComplianceDocumentDto,
   ) {
-    const existing = await this.prisma.complianceDocument.findFirst({
-      where: {
-        id,
-        tenantId,
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('Compliance document not found');
-    }
-
-    if (dto.candidateId && dto.candidateId !== existing.candidateId) {
-      const candidate = await this.prisma.candidate.findFirst({
+    return this.tenantTransaction.execute(tenantId, async (tx) => {
+      const existing = await tx.complianceDocument.findFirst({
         where: {
-          id: dto.candidateId,
+          id,
           tenantId,
         },
       });
 
-      if (!candidate) {
-        throw new NotFoundException('Candidate not found');
+      if (!existing) {
+        throw new NotFoundException('Compliance document not found');
       }
-    }
 
-    const nextVersion = existing.currentVersion + 1;
+      if (dto.candidateId && dto.candidateId !== existing.candidateId) {
+        const candidate = await tx.candidate.findFirst({
+          where: {
+            id: dto.candidateId,
+            tenantId,
+          },
+        });
 
-    return this.prisma.$transaction(async (tx) => {
+        if (!candidate) {
+          throw new NotFoundException('Candidate not found');
+        }
+      }
+
+      const nextVersion = existing.currentVersion + 1;
+
+      const latestVersion = await this.getLatestVersionId(tx, tenantId, id);
+
       const updated = await tx.complianceDocument.update({
-        where: {
-          id,
-        },
+        where: { id },
         data: {
           candidateId: dto.candidateId,
           type: dto.type,
           issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
           expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
           currentVersion: nextVersion,
+          status: DocumentStatus.PENDING,
         },
       });
 
-      await tx.documentVersion.create({
+      const newVersion = await tx.documentVersion.create({
         data: {
           tenantId,
           documentId: id,
           version: nextVersion,
           issueDate: updated.issueDate,
           expiryDate: updated.expiryDate,
-          status: updated.status,
+          status: DocumentStatus.PENDING,
           fileReference: dto.fileReference,
-          supersedesVersionId: await this.getLatestVersionId(tx, id),
+          supersedesVersionId: latestVersion,
         },
       });
 
-      await tx.auditEvent.create({
-        data: {
-          tenantId,
-          actorId,
-          action: 'UPDATE',
-          recordType: 'ComplianceDocument',
-          recordId: id,
-          beforeHash: this.hashRecord(existing),
-          afterHash: this.hashRecord(updated),
-        },
+      await this.auditService.recordCreate(tx, {
+        tenantId,
+        actorId,
+        recordType: 'DocumentVersion',
+        recordId: newVersion.id,
+        after: newVersion,
       });
 
-      return updated;
+      await this.auditService.recordUpdate(tx, {
+        tenantId,
+        actorId,
+        recordType: 'ComplianceDocument',
+        recordId: id,
+        before: existing,
+        after: updated,
+      });
+
+      return { ...updated, newVersion };
     });
   }
 
@@ -295,40 +313,13 @@ export class ComplianceDocumentsService {
     );
   }
 
-  async getExpiringSoon(tenantId: string) {
-    const now = new Date();
-
-    const thirtyDaysFromNow = new Date(now);
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-    return this.prisma.complianceDocument.findMany({
-      where: {
-        tenantId,
-        expiryDate: {
-          gte: now,
-          lte: thirtyDaysFromNow,
-        },
-        status: {
-          not: DocumentStatus.SUPERSEDED,
-        },
-      },
-      include: {
-        candidate: true,
-      },
-      orderBy: {
-        expiryDate: 'asc',
-      },
-    });
-  }
-
   private async getLatestVersionId(
     tx: Prisma.TransactionClient,
+    tenantId: string,
     documentId: string,
   ): Promise<string | undefined> {
     const latest = await tx.documentVersion.findFirst({
-      where: {
-        documentId,
-      },
+      where: { tenantId, documentId },
       orderBy: {
         version: 'desc',
       },
@@ -338,9 +329,5 @@ export class ComplianceDocumentsService {
     });
 
     return latest?.id;
-  }
-
-  private hashRecord(record: unknown): string {
-    return createHash('sha256').update(JSON.stringify(record)).digest('hex');
   }
 }

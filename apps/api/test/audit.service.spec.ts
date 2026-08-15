@@ -21,20 +21,7 @@ import { TenantTransactionService } from '../src/prisma/tenant-transaction.servi
 import { AuditAction, Prisma } from '../generated/prisma/client.js';
 import { AuthenticatedUser } from '../src/common/interfaces/authenticated-request.interface.js';
 
-/* ============================================================
- * Shared local types for mocks
- *
- * Where the real method signature is simple and non-overloaded
- * (AuditService, CandidatesService) the mock's param and return
- * types are derived straight from the source method with
- * Parameters<>/ReturnType<> utility types, so the mock can never
- * silently drift from the real signature.
- *
- * Prisma's delegate methods (candidate.create, findFirst, etc.)
- * are heavily overloaded generics that don't extract cleanly
- * through Parameters<>, so those get small hand-written interfaces
- * covering only the fields these tests actually touch.
- * ============================================================ */
+//Shared local types for mocks
 
 interface CandidateRecord {
   id: string;
@@ -129,14 +116,10 @@ interface MockAuditService {
   recordRead: jest.Mock<RecordReadFn>;
 }
 
-// Derived straight from the real service methods, so if the DTOs
-// change shape upstream, these types (and this file) update with them.
 type CreateCandidateInput = Parameters<CandidatesService['createCandidate']>[0];
 type UpdateCandidateInput = Parameters<CandidatesService['updateCandidate']>[1];
 
-/* ============================================================
- * 1. AuditService — unit tests
- * ============================================================ */
+// 1. AuditService — unit tests
 
 describe('AuditService', () => {
   let service: AuditService;
@@ -265,9 +248,7 @@ describe('AuditService', () => {
   });
 });
 
-/* ============================================================
- * 2. CandidatesService — audit integration
- * ============================================================ */
+// 2. CandidatesService — audit integration
 
 describe('CandidatesService — audit integration', () => {
   let service: CandidatesService;
@@ -335,10 +316,6 @@ describe('CandidatesService — audit integration', () => {
         callback(tx),
     );
   });
-
-  /* ----------------------------------------------------------
-   * CREATE
-   * ---------------------------------------------------------- */
 
   describe('createCandidate', () => {
     it('creates the candidate and records a CREATE audit event', async () => {
@@ -437,10 +414,6 @@ describe('CandidatesService — audit integration', () => {
     });
   });
 
-  /* ----------------------------------------------------------
-   * UPDATE
-   * ---------------------------------------------------------- */
-
   describe('updateCandidate', () => {
     it('records an UPDATE audit event with distinct before and after payloads', async () => {
       const before: CandidateRecord = {
@@ -530,10 +503,6 @@ describe('CandidatesService — audit integration', () => {
     });
   });
 
-  /* ----------------------------------------------------------
-   * READ
-   * ---------------------------------------------------------- */
-
   describe('getCandidateById', () => {
     it('records a READ audit event when the candidate is found', async () => {
       const candidate: CandidateRecord = {
@@ -584,17 +553,7 @@ describe('CandidatesService — audit integration', () => {
   });
 });
 
-/* ============================================================
- * 3. AuditEvent immutability — real PostgreSQL
- *
- * This suite intentionally uses a real database because the
- * immutability guarantee is enforced by a PostgreSQL trigger.
- * All calls here go through the real, generated Prisma Client,
- * so they're already fully typed with no need for local mock types.
- *
- * Run this against a disposable test database.
- * ============================================================ */
-
+// 3. AuditEvent immutability (DB trigger)
 describe('AuditEvent immutability (DB trigger)', () => {
   let prisma: PrismaService;
 
@@ -610,9 +569,6 @@ describe('AuditEvent immutability (DB trigger)', () => {
 
     await prisma.$connect();
 
-    /*
-     * Seed valid foreign-key dependencies.
-     */
     const tenant = await prisma.tenant.create({
       data: {
         name: `Audit Test Tenant ${Date.now()}`,
@@ -635,15 +591,6 @@ describe('AuditEvent immutability (DB trigger)', () => {
   });
 
   afterAll(async () => {
-    /*
-     * Do not attempt to delete AuditEvent records here.
-     *
-     * The whole point of the trigger is that audit records
-     * cannot be deleted.
-     *
-     * The test should therefore run against a disposable
-     * database or an isolated test schema.
-     */
     await prisma.$disconnect();
   });
 
