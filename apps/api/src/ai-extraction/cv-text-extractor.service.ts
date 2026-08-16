@@ -1,4 +1,5 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
+import { CanvasFactory } from 'pdf-parse/worker';
 import { PDFParse } from 'pdf-parse';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class CvTextExtractorService {
     if (file.mimetype === 'application/pdf') {
       const parser = new PDFParse({
         data: file.buffer,
+        CanvasFactory,
       });
 
       try {
