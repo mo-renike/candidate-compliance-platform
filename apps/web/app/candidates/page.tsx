@@ -7,10 +7,11 @@ import type { Candidate, CandidatesResponse } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { LoadingState } from "@/components/ui/loading-state";
+import { AppHeader } from "@/components/ui/app-header";
 
 export default function CandidatesPage() {
   const router = useRouter();
-  const { user, logout: handleLogout } = useAuth();
+  const { user, loading: loadingUser } = useAuth();
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [search, setSearch] = useState("");
@@ -82,34 +83,13 @@ export default function CandidatesPage() {
     }
   }, [user, router]);
 
-  if (!user) {
+  if (loadingUser || !user) {
     return <LoadingState />;
   }
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div>
-            <p className="text-sm font-semibold text-indigo-600">
-              Candidate Compliance
-            </p>
-
-            <h1 className="text-xl font-bold text-slate-900">Candidates</h1>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{user.name}</span>
-
-            <button
-              onClick={handleLogout}
-              className="text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader title="Candidates" />
 
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">

@@ -7,10 +7,11 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingState } from "@/components/ui/loading-state";
 import type { Candidate, CreateCandidateInput } from "@/lib/types";
+import { AppHeader } from "@/components/ui/app-header";
 
 export default function NewCandidatePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: loadingUser } = useAuth();
 
   const [form, setForm] = useState<CreateCandidateInput>({
     name: "",
@@ -22,10 +23,10 @@ export default function NewCandidatePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [loadingUser, user, router, loading]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,17 +56,7 @@ export default function NewCandidatePage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-4xl px-6 py-5">
-          <button
-            onClick={() => router.back()}
-            className="text-sm font-medium text-slate-500 hover:text-slate-500"
-          >
-            ← Back to candidates
-          </button>
-        </div>
-      </header>
-
+      <AppHeader title="Add candidate" backHref="/candidates" />
       <div className="mx-auto max-w-4xl px-6 py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-500">Add candidate</h1>

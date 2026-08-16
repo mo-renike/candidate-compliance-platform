@@ -7,10 +7,11 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingState } from "@/components/ui/loading-state";
 import { AIExtraction, Candidate } from "@/lib/types";
+import { AppHeader } from "@/components/ui/app-header";
 
 export default function AIExtractionPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [purpose, setPurpose] = useState(
@@ -35,10 +36,10 @@ export default function AIExtractionPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    if (!user) {
+    if (loading && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [loading, user, router]);
 
   useEffect(() => {
     if (!user) {
@@ -76,7 +77,7 @@ export default function AIExtractionPage() {
     };
   }, [user]);
 
-  if (!user) {
+  if (loading || !user) {
     return <LoadingState />;
   }
 
@@ -217,26 +218,7 @@ export default function AIExtractionPage() {
   if (!canCreateExtraction) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-            <div>
-              <p className="text-sm font-semibold text-indigo-600">
-                Candidate Compliance
-              </p>
-
-              <h1 className="text-xl font-bold text-slate-900">
-                AI CV Extraction
-              </h1>
-            </div>
-
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              Back to dashboard
-            </button>
-          </div>
-        </header>
+        <AppHeader title="AI CV Extraction" backHref="/dashboard" />
 
         <div className="mx-auto max-w-3xl px-6 py-12">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
