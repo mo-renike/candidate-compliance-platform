@@ -17,7 +17,7 @@ import {
   type CvExtractionProvider,
 } from './providers/cv-extractor.interface.js';
 import { ConfirmExtractionDto } from './dto/confirm-ai-extraction.dto.js';
-import { CvExtractionOutputDto } from './dto/cv-extraction-output.dto.ts.js';
+import { CvExtractionOutputDto } from './dto/cv-extraction-output.dto.js';
 
 @Injectable()
 export class AiCvExtractionService {
@@ -47,6 +47,9 @@ export class AiCvExtractionService {
       }
     }
 
+    if (!file) {
+      throw new BadRequestException('CV file is required');
+    }
     const text = await this.textExtractor.extractText(file);
 
     if (!text.trim()) {

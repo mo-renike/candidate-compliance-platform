@@ -38,10 +38,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.READ_CANDIDATE,
     Permission.CREATE_CANDIDATE,
     Permission.UPDATE_CANDIDATE,
+
     Permission.READ_DOCUMENT,
     Permission.CREATE_DOCUMENT,
+
     Permission.READ_VERIFICATION,
+
     Permission.READ_AI_EXTRACTION,
+    Permission.CREATE_AI_EXTRACTION,
     Permission.CONFIRM_AI_EXTRACTION,
   ],
 
