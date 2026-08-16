@@ -6,6 +6,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ComplianceDocumentModule } from './compliance-document/compliance-document.module.js';
 import { IdempotencyModule } from './common/idempotency/idempotency.module.js';
 import { AuditModule } from './audit/audit.module.js';
+import { VerificationModule } from './verification/verification.module.js';
+import { AiExtractionModule } from './ai-extraction/ai-extraction.module.js';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { AuditModule } from './audit/audit.module.js';
     ComplianceDocumentModule,
     IdempotencyModule,
     AuditModule,
+    VerificationModule,
+    AiExtractionModule,
   ],
 })
 export class AppModule {}

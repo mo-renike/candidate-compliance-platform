@@ -10,7 +10,12 @@ export enum Permission {
   UPDATE_DOCUMENT = 'document:update',
   DELETE_DOCUMENT = 'document:delete',
 
-  EXTRACT_AI = 'ai:extract',
+  CREATE_VERIFICATION = 'verification:create',
+  READ_VERIFICATION = 'verification:read',
+
+  READ_AI_EXTRACTION = 'ai:extract',
+  CREATE_AI_EXTRACTION = 'ai:create',
+  CONFIRM_AI_EXTRACTION = 'ai:confirm',
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -22,7 +27,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.CREATE_DOCUMENT,
     Permission.UPDATE_DOCUMENT,
     Permission.DELETE_DOCUMENT,
-    Permission.EXTRACT_AI,
+    Permission.CREATE_VERIFICATION,
+    Permission.READ_VERIFICATION,
+    Permission.READ_AI_EXTRACTION,
+    Permission.CONFIRM_AI_EXTRACTION,
+    Permission.CREATE_AI_EXTRACTION,
   ],
 
   RECRUITER: [
@@ -31,7 +40,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.UPDATE_CANDIDATE,
     Permission.READ_DOCUMENT,
     Permission.CREATE_DOCUMENT,
-    Permission.EXTRACT_AI,
+    Permission.READ_VERIFICATION,
+    Permission.READ_AI_EXTRACTION,
+    Permission.CONFIRM_AI_EXTRACTION,
   ],
 
   COMPLIANCE_MANAGER: [
@@ -39,5 +50,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.READ_DOCUMENT,
     Permission.CREATE_DOCUMENT,
     Permission.UPDATE_DOCUMENT,
+    Permission.CREATE_VERIFICATION,
+    Permission.READ_VERIFICATION,
   ],
 };
