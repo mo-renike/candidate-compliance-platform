@@ -78,10 +78,10 @@ export default function CandidatesPage() {
   }, [user, page, search]);
 
   useEffect(() => {
-    if (!user) {
+    if (!loadingUser && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [user, router, loadingUser]);
 
   if (loadingUser || !user) {
     return <LoadingState />;

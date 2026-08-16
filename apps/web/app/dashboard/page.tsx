@@ -12,10 +12,10 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [loading, user, router]);
 
   if (loading || !user) {
     return <LoadingState />;

@@ -36,7 +36,7 @@ export default function AIExtractionPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    if (loading && !user) {
+    if (!loading && !user) {
       router.replace("/login");
     }
   }, [loading, user, router]);
