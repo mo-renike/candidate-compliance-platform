@@ -162,6 +162,18 @@ export class CandidatesService {
         }),
       ]);
 
+      await this.auditService.recordReadCollection(tx, {
+        tenantId: user.tenantId,
+        actorId: user.id,
+        recordType: 'CandidateCollection',
+        metadata: {
+          count: total,
+          filters: { search, roleAppliedFor },
+          page,
+          limit,
+        },
+      });
+
       return {
         data: items,
         meta: {

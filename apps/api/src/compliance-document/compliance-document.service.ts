@@ -131,7 +131,11 @@ export class ComplianceDocumentsService {
     }
   }
 
-  async getAllDocuments(tenantId: string, query: ListComplianceDocumentsDto) {
+  async getAllDocuments(
+    tenantId: string,
+    actorId: string,
+    query: ListComplianceDocumentsDto,
+  ) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -157,6 +161,22 @@ export class ComplianceDocumentsService {
         tx.complianceDocument.count({ where }),
       ]);
 
+      await this.auditService.recordReadCollection(tx, {
+        tenantId,
+        actorId,
+        recordType: 'ComplianceDocumentCollection',
+        metadata: {
+          count: total,
+          filters: {
+            candidateId: query.candidateId,
+            type: query.type,
+            status: query.status,
+          },
+          page,
+          limit,
+        },
+      });
+
       return {
         data,
         meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -164,13 +184,13 @@ export class ComplianceDocumentsService {
     });
   }
 
-  async getExpiringSoon(tenantId: string) {
+  async getExpiringSoon(tenantId: string, actorId: string) {
     const now = new Date();
     const thirtyDaysFromNow = new Date(now);
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-    return this.tenantTransaction.execute(tenantId, (tx) =>
-      tx.complianceDocument.findMany({
+    return this.tenantTransaction.execute(tenantId, async (tx) => {
+      const documents = await tx.complianceDocument.findMany({
         where: {
           tenantId,
           expiryDate: { gte: now, lte: thirtyDaysFromNow },
@@ -178,8 +198,20 @@ export class ComplianceDocumentsService {
         },
         include: { candidate: true },
         orderBy: { expiryDate: 'asc' },
-      }),
-    );
+      });
+
+      await this.auditService.recordReadCollection(tx, {
+        tenantId,
+        actorId,
+        recordType: 'ComplianceDocumentCollection',
+        metadata: {
+          count: documents.length,
+          filter: 'expiringSoon',
+        },
+      });
+
+      return documents;
+    });
   }
 
   async getDocumentByID(tenantId: string, actorId: string, id: string) {

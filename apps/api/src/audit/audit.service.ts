@@ -99,4 +99,24 @@ export class AuditService {
       },
     });
   }
+
+  async recordReadCollection(
+    tx: Prisma.TransactionClient,
+    params: {
+      tenantId: string;
+      actorId?: string;
+      recordType: string;
+      metadata: Prisma.InputJsonValue;
+    },
+  ) {
+    return tx.auditEvent.create({
+      data: {
+        tenantId: params.tenantId,
+        actorId: params.actorId,
+        action: AuditAction.READ,
+        recordType: params.recordType,
+        metadata: params.metadata,
+      },
+    });
+  }
 }

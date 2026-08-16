@@ -58,15 +58,19 @@ export class ComplianceDocumentsController {
   ) {
     return this.complianceDocumentsService.getAllDocuments(
       user.tenantId,
+      user.id,
       query,
     );
   }
 
   @ApiOperation({ summary: 'Get expiring soon compliance documents' })
-  @Get('expiring')
+  @Get('expiring-soon')
   @RequirePermissions(Permission.READ_DOCUMENT)
   getExpiringSoon(@CurrentUser() user: AuthenticatedUser) {
-    return this.complianceDocumentsService.getExpiringSoon(user.tenantId);
+    return this.complianceDocumentsService.getExpiringSoon(
+      user.tenantId,
+      user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Get a specific compliance document' })
