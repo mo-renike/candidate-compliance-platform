@@ -77,4 +77,26 @@ export class AuditService {
       },
     });
   }
+
+  async recordDelete(
+    tx: Prisma.TransactionClient,
+    params: {
+      tenantId: string;
+      actorId?: string;
+      recordType: string;
+      recordId: string;
+      before: unknown;
+    },
+  ) {
+    return tx.auditEvent.create({
+      data: {
+        tenantId: params.tenantId,
+        actorId: params.actorId,
+        action: AuditAction.DELETE,
+        recordType: params.recordType,
+        recordId: params.recordId,
+        beforeHash: this.hash(params.before),
+      },
+    });
+  }
 }

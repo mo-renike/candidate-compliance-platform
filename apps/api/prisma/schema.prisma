@@ -193,7 +193,8 @@ model AuditEvent {
   actorId    String?
   action     AuditAction
   recordType String
-  recordId   String
+  recordId   String?
+  metadata   Json?
   timestamp  DateTime    @default(now())
   beforeHash String?
   afterHash  String?

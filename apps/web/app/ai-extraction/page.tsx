@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingState } from "@/components/ui/loading-state";
-import { AIExtraction, Candidate, UserRole } from "@/lib/types";
+import { AIExtraction, Candidate } from "@/lib/types";
 
 export default function AIExtractionPage() {
   const router = useRouter();

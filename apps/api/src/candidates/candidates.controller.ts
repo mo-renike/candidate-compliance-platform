@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -66,5 +67,15 @@ export class CandidatesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.candidatesService.updateCandidate(id, dto, user);
+  }
+
+  @ApiOperation({ summary: 'Delete a candidate' })
+  @Delete(':id')
+  @RequirePermissions(Permission.DELETE_CANDIDATE)
+  deleteCandidate(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.candidatesService.deleteCandidate(id, user);
   }
 }

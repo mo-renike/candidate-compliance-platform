@@ -4,6 +4,7 @@ export enum Permission {
   READ_CANDIDATE = 'candidate:read',
   CREATE_CANDIDATE = 'candidate:create',
   UPDATE_CANDIDATE = 'candidate:update',
+  DELETE_CANDIDATE = 'candidate:delete',
 
   READ_DOCUMENT = 'document:read',
   CREATE_DOCUMENT = 'document:create',
@@ -13,7 +14,7 @@ export enum Permission {
   CREATE_VERIFICATION = 'verification:create',
   READ_VERIFICATION = 'verification:read',
 
-  READ_AI_EXTRACTION = 'ai:extract',
+  READ_AI_EXTRACTION = 'ai:read',
   CREATE_AI_EXTRACTION = 'ai:create',
   CONFIRM_AI_EXTRACTION = 'ai:confirm',
 }
@@ -23,6 +24,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.READ_CANDIDATE,
     Permission.CREATE_CANDIDATE,
     Permission.UPDATE_CANDIDATE,
+    Permission.DELETE_CANDIDATE,
     Permission.READ_DOCUMENT,
     Permission.CREATE_DOCUMENT,
     Permission.UPDATE_DOCUMENT,

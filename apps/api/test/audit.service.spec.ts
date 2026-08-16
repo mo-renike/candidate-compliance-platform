@@ -84,22 +84,6 @@ interface MockTx {
   };
 }
 
-type PrismaCandidateFindUniqueFn = (
-  args: Record<string, unknown>,
-) => Promise<CandidateRecord | null>;
-
-type PrismaTransactionCallback = (tx: MockTx) => Promise<unknown>;
-type PrismaTransactionFn = (
-  callback: PrismaTransactionCallback,
-) => Promise<unknown>;
-
-interface MockPrisma {
-  candidate: {
-    findUnique: jest.Mock<PrismaCandidateFindUniqueFn>;
-  };
-  $transaction: jest.Mock<PrismaTransactionFn>;
-}
-
 type TenantExecuteCallback = (tx: MockTx) => Promise<unknown>;
 type TenantExecuteFn = (
   tenantId: string,
@@ -253,7 +237,6 @@ describe('AuditService', () => {
 describe('CandidatesService — audit integration', () => {
   let service: CandidatesService;
 
-  let prisma: MockPrisma;
   let tenantTransaction: MockTenantTransaction;
   let auditService: MockAuditService;
 
@@ -272,13 +255,6 @@ describe('CandidatesService — audit integration', () => {
   };
 
   beforeEach(async () => {
-    prisma = {
-      candidate: {
-        findUnique: jest.fn<PrismaCandidateFindUniqueFn>(),
-      },
-      $transaction: jest.fn<PrismaTransactionFn>(),
-    };
-
     tenantTransaction = {
       execute: jest.fn<TenantExecuteFn>(),
     };
@@ -292,10 +268,7 @@ describe('CandidatesService — audit integration', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CandidatesService,
-        {
-          provide: PrismaService,
-          useValue: prisma,
-        },
+
         {
           provide: TenantTransactionService,
           useValue: tenantTransaction,
@@ -319,7 +292,7 @@ describe('CandidatesService — audit integration', () => {
 
   describe('createCandidate', () => {
     it('creates the candidate and records a CREATE audit event', async () => {
-      prisma.candidate.findUnique.mockResolvedValue(null);
+      tx.candidate.findUnique.mockResolvedValue(null);
 
       const created: CandidateRecord = {
         id: 'c1',
@@ -341,6 +314,20 @@ describe('CandidatesService — audit integration', () => {
 
       expect(result).toEqual(created);
 
+      expect(tenantTransaction.execute).toHaveBeenCalledWith(
+        't1',
+        expect.any(Function),
+      );
+
+      expect(tx.candidate.findUnique).toHaveBeenCalledWith({
+        where: {
+          tenantId_email: {
+            tenantId: 't1',
+            email: 'jane@x.com',
+          },
+        },
+      });
+
       expect(auditService.recordCreate).toHaveBeenCalledTimes(1);
 
       expect(auditService.recordCreate).toHaveBeenCalledWith(
@@ -356,7 +343,7 @@ describe('CandidatesService — audit integration', () => {
     });
 
     it('throws ConflictException and does not create an audit event on duplicate email', async () => {
-      prisma.candidate.findUnique.mockResolvedValue({
+      tx.candidate.findUnique.mockResolvedValue({
         id: 'existing',
         name: 'Existing',
         email: 'jane@x.com',
@@ -374,15 +361,17 @@ describe('CandidatesService — audit integration', () => {
         ConflictException,
       );
 
-      expect(tenantTransaction.execute).not.toHaveBeenCalled();
+      expect(tenantTransaction.execute).toHaveBeenCalledTimes(1);
 
-      expect(auditService.recordCreate).not.toHaveBeenCalled();
+      expect(tx.candidate.findUnique).toHaveBeenCalledTimes(1);
 
       expect(tx.candidate.create).not.toHaveBeenCalled();
+
+      expect(auditService.recordCreate).not.toHaveBeenCalled();
     });
 
     it('propagates audit failure after candidate creation', async () => {
-      prisma.candidate.findUnique.mockResolvedValue(null);
+      tx.candidate.findUnique.mockResolvedValue(null);
 
       const created: CandidateRecord = {
         id: 'c1',
@@ -513,15 +502,16 @@ describe('CandidatesService — audit integration', () => {
         roleAppliedFor: 'Engineer',
       };
 
-      prisma.$transaction.mockImplementation(
-        async (callback: PrismaTransactionCallback) => callback(tx),
-      );
-
       tx.candidate.findFirst.mockResolvedValue(candidate);
 
       const result = await service.getCandidateById('c1', user);
 
       expect(result).toEqual(candidate);
+
+      expect(tenantTransaction.execute).toHaveBeenCalledWith(
+        't1',
+        expect.any(Function),
+      );
 
       expect(auditService.recordRead).toHaveBeenCalledTimes(1);
 
@@ -538,10 +528,6 @@ describe('CandidatesService — audit integration', () => {
     });
 
     it('throws NotFoundException and does not record an audit event when candidate is missing', async () => {
-      prisma.$transaction.mockImplementation(
-        async (callback: PrismaTransactionCallback) => callback(tx),
-      );
-
       tx.candidate.findFirst.mockResolvedValue(null);
 
       await expect(service.getCandidateById('missing', user)).rejects.toThrow(
